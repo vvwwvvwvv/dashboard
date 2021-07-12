@@ -43,8 +43,10 @@ df.loc[:, "status"] = np.where((df["gravity"] == "optimal") &
                                 "challenging", df["status"])
 df["status"] = df.status.fillna("extreme")
 
-#print(df.groupby("status")["ROW"].count())
+""" RELATIVE DISTANCE (Distance to SUN/SUM radii) """
+df.loc[:, "relative_dist"] = df["A"]/df["RSTAR"]
 
+""" FILTERS """
 options = []
 for k in names:
     options.append({"label": k, "value": k})
@@ -55,7 +57,6 @@ star_size_selector = dcc.Dropdown(
     value=["small", "similar", "bigger"],
     multi=True
 )
-
 rplanet_selector = dcc.RangeSlider(
     id="range-slider",
     min=min(df["RPLANET"]),
@@ -64,6 +65,16 @@ rplanet_selector = dcc.RangeSlider(
     step=1,
     value=[5, 50]
 )
+
+#TABS CONTENT
+tab1_content = [dbc.Row([
+        dbc.Col(html.Div(id="dist-temp-chart"), md=6),
+        dbc.Col(html.Div(id="celestial-chart"), md=6)
+        ], style={"margin-top": 20}),
+    dbc.Row([
+        dbc.Col(html.Div(id="relative-dist-chart"), md=6),
+        dbc.Col(html.Div(id="mstar-tstar-chart"))
+    ])]
 
 app = dash.Dash(__name__,
                 external_stylesheets=[dbc.themes.LUX])
@@ -91,39 +102,34 @@ app.layout = html.Div([
     ],
             style={"margin-bottom": 40}),
     #charts
-    dbc.Row([
-        dbc.Col([html.Div(id="dist-temp-chart")
-            #html.Div("Planet Temperature - Distance from the Star"),
-            #dcc.Graph(id="dist-temp-chart")
-        ],
-            width={"size": 6}),
-        dbc.Col([html.Div(id="celestial-chart")
-            #html.Div("Position on the Celestial Sphere"),
-            #dcc.Graph(id="celestial-chart")
-        ])
-    ],
-            style={"margin-bottom": 40}),
+    dbc.Tabs([
+        dbc.Tab(tab1_content, label="Charts"),
+        dbc.Tab(html.Div("Tab 2 content!"), label="Tab2"),
+        dbc.Tab(html.Div("About app"), label="About")
+    ])
     ],
     style={"margin-left": "80px",
            "margin-right": "80px"})
 
 """ CALLBACKS """
 
+
 @app.callback(
-    Output(component_id="dist-temp-chart", component_property="children"),
-    Output(component_id="celestial-chart", component_property="children"),
+    [Output(component_id="dist-temp-chart", component_property="children"),
+     Output(component_id="celestial-chart", component_property="children"),
+     Output(component_id="relative-dist-chart", component_property="children"),
+     Output(component_id="mstar-tstar-chart", component_property="children")],
     [Input(component_id="submit_val", component_property="n_clicks")],
     [State(component_id="range-slider", component_property="value"),
      State(component_id="star-selector", component_property="value")]
 )
 def update_dist_temp_chart(n, radius_range, star_size):
-    #print(n)
     chart_data = df[(df["RPLANET"] > radius_range[0]) &
                     (df["RPLANET"] < radius_range[1]) &
                     (df["Star_Size"].isin(star_size))]
 
     if len(chart_data) == 0:
-        return html.Div("Please select more data"), html.Div()
+        return html.Div("Please select more data"), html.Div(), html.Div(), html.Div()
 
     fig1 = px.scatter(chart_data, x="TPLANET", y="A", color="Star_Size")
 
@@ -134,8 +140,17 @@ def update_dist_temp_chart(n, radius_range, star_size):
                       color="status")
     html2 = [html.Div("Position on the Celestial Sphere"),
              dcc.Graph(figure=fig2)]
+    fig3 = px.histogram(chart_data, x="relative_dist",
+                        color="status", barmode="overlay", marginal="violin")
+    fig3.add_vline(x=1, y0=0, y1=160, annotation_text="Earth", line_dash="dot")
+    html3 = [html.Div("Relative distance (AU/Sol) radii"),
+             dcc.Graph(figure=fig3)]
+    fig4 = px.scatter(chart_data, x="MSTAR", y="TSTAR", size="RPLANET",
+                      color="status")
+    html4 = [html.Div("Star Mass - Star Temperature"),
+             dcc.Graph(figure=fig4)]
 
-    return html1, html2
+    return html1, html2, html3, html4
 
 
 if __name__ == "__main__":
