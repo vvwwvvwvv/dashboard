@@ -1,4 +1,5 @@
 import dash
+import dash_table
 import dash_core_components as dcc
 import dash_html_components as html
 import dash_bootstrap_components as dbc
@@ -13,6 +14,7 @@ import plotly.express as px
 response = requests.get("http://asterank.com/api/kepler?query={}&limit=2000")
 df = pd.json_normalize(response.json())
 df = df[df["PER"] > 0]
+df['KOI'] = df['KOI'].astype(int, errors='ignore')
 
 #создаем категорию для звезд
 bins = [0, 0.8, 1.2, 100]
@@ -75,6 +77,7 @@ tab1_content = [dbc.Row([
         dbc.Col(html.Div(id="relative-dist-chart"), md=6),
         dbc.Col(html.Div(id="mstar-tstar-chart"))
     ])]
+tab2_content = [dbc.Row(html.Div(id="data-table"), style={"margin-top": 20})]
 
 app = dash.Dash(__name__,
                 external_stylesheets=[dbc.themes.LUX])
@@ -104,7 +107,7 @@ app.layout = html.Div([
     #charts
     dbc.Tabs([
         dbc.Tab(tab1_content, label="Charts"),
-        dbc.Tab(html.Div("Tab 2 content!"), label="Tab2"),
+        dbc.Tab(tab2_content, label="Data"),
         dbc.Tab(html.Div("About app"), label="About")
     ])
     ],
@@ -118,7 +121,8 @@ app.layout = html.Div([
     [Output(component_id="dist-temp-chart", component_property="children"),
      Output(component_id="celestial-chart", component_property="children"),
      Output(component_id="relative-dist-chart", component_property="children"),
-     Output(component_id="mstar-tstar-chart", component_property="children")],
+     Output(component_id="mstar-tstar-chart", component_property="children"),
+     Output(component_id="data-table", component_property="children")],
     [Input(component_id="submit_val", component_property="n_clicks")],
     [State(component_id="range-slider", component_property="value"),
      State(component_id="star-selector", component_property="value")]
@@ -150,7 +154,22 @@ def update_dist_temp_chart(n, radius_range, star_size):
     html4 = [html.Div("Star Mass - Star Temperature"),
              dcc.Graph(figure=fig4)]
 
-    return html1, html2, html3, html4
+    #RAW DATA TABLE
+    raw_data = chart_data.drop(["relative_dist",
+                                "Star_Size",
+                                'ROW',
+                                'temp',
+                                'gravity'], axis=1)
+    tbl = dash_table.DataTable(data=raw_data.to_dict("records"),
+                               columns=[{"name": i, "id": i}
+                                        for i in raw_data.columns],
+                               style_data={"width": '100px',
+                                           "maxwidth": '100px',
+                                           "minwidth":'100px'},
+                               style_header={'text-align': 'center'},
+                               page_size=40)
+    html5 = [html.P("Raw Data"), tbl]
+    return html1, html2, html3, html4, html5
 
 
 if __name__ == "__main__":
